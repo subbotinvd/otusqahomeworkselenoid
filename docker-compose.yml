@@ -46,7 +46,7 @@ services:
       - prestashop_network
 
   tests:
-    build: ../../Downloads/OtusQAhomeworkSelenoid
+    build: .
     depends_on:
       prestashop:
         condition: service_healthy

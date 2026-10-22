@@ -1,0 +1,84 @@
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      MYSQL_ROOT_PASSWORD: prestashop
+      MYSQL_DATABASE: prestashop
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - selenoid
+
+  prestashop:
+    image: prestashop/prestashop:9.2.0-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      PS_INSTALL_AUTO: 1
+      PS_DOMAIN: localhost:8080
+      PS_HANDLE_DYNAMIC_DOMAIN: 1
+      PS_LANGUAGE: en
+      PS_COUNTRY: GB
+      PS_FOLDER_ADMIN: admin
+      ADMIN_MAIL: admin@prestashop.com
+      ADMIN_PASSWD: "AdminDemo-2026-Pass"
+      DB_SERVER: db
+      DB_USER: root
+      DB_PASSWD: prestashop
+      DB_NAME: prestashop
+    volumes:
+      - shop_data:/var/www/html
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'exit(@file_get_contents(\"http://localhost/\")===false?1:0);'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    networks:
+      - selenoid
+
+  selenoid:
+    image: aerokube/selenoid:latest-release
+    volumes:
+      - ./config:/etc/selenoid:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "4444:4444"
+    networks:
+      - selenoid
+
+  selenoid-ui:
+    image: aerokube/selenoid-ui:latest-release
+    depends_on:
+      - selenoid
+    command: ["--selenoid-uri", "http://selenoid:4444"]
+    ports:
+      - "8090:8080"
+    networks:
+      - selenoid
+
+  jenkins:
+    build: .
+    ports:
+      - "8081:8080"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+    networks:
+      - selenoid
+
+volumes:
+  db_data:
+  shop_data:
+  jenkins_data:
+
+networks:
+  selenoid:
+    name: selenoid
