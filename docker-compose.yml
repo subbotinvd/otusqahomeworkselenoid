@@ -1,0 +1,73 @@
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      MYSQL_ROOT_PASSWORD: prestashop
+      MYSQL_DATABASE: prestashop
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - prestashop_network
+
+  prestashop:
+    image: prestashop/prestashop:9.2.0-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      PS_INSTALL_AUTO: 1
+      PS_DOMAIN: localhost:8080
+      PS_HANDLE_DYNAMIC_DOMAIN: 1
+      PS_LANGUAGE: en
+      PS_COUNTRY: GB
+      PS_FOLDER_ADMIN: admin
+      ADMIN_MAIL: admin@prestashop.com
+      ADMIN_PASSWD: "AdminDemo-2026-Pass"
+      DB_SERVER: db
+      DB_USER: root
+      DB_PASSWD: prestashop
+      DB_NAME: prestashop
+    volumes:
+      - shop_data:/var/www/html
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'exit(@file_get_contents(\"http://localhost/\")===false?1:0);'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    networks:
+      - prestashop_network
+
+  tests:
+    build: ../../Downloads/OtusQAhomeworkSelenoid
+    depends_on:
+      prestashop:
+        condition: service_healthy
+    environment:
+      SHOP_URL: http://prestashop
+      EXECUTOR: selenoid
+      HEADLESS: "0"
+      ADMIN_EMAIL: admin@prestashop.com
+      ADMIN_PASSWORD: "AdminDemo-2026-Pass"
+      ADMIN_FOLDER: admin
+    volumes:
+      - allure_results:/app/allure-results
+    networks:
+      - prestashop_network
+
+volumes:
+  db_data:
+  shop_data:
+  allure_results:
+
+networks:
+  prestashop_network:
+    external:
+      name: selenoid
